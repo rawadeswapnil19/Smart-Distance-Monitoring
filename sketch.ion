@@ -1,0 +1,129 @@
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// OLED configuration
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+#define OLED_ADDRESS 0x3C
+
+Adafruit_SSD1306 display(
+  SCREEN_WIDTH,
+  SCREEN_HEIGHT,
+  &Wire,
+  OLED_RESET
+);
+
+// HC-SR04 pins
+#define TRIG_PIN 5
+#define ECHO_PIN 18
+
+// Buzzer pin
+#define BUZZER_PIN 25
+
+float distanceCM = 0;
+
+void setup() {
+  Serial.begin(115200);
+
+  // Configure sensor and buzzer
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+
+  digitalWrite(TRIG_PIN, LOW);
+  digitalWrite(BUZZER_PIN, LOW);
+
+  // Initialize I2C OLED
+  Wire.begin(21, 22);
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS)) {
+    Serial.println("OLED initialization failed!");
+    while (true) {
+      delay(100);
+    }
+  }
+
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("SMART DISTANCE");
+  display.println("MONITORING SYSTEM");
+  display.println();
+  display.println("Initializing...");
+  display.display();
+
+  delay(1500);
+}
+
+void loop() {
+  // Send ultrasonic trigger pulse
+  digitalWrite(TRIG_PIN, LOW);
+  delayMicroseconds(2);
+
+  digitalWrite(TRIG_PIN, HIGH);
+  delayMicroseconds(10);
+
+  digitalWrite(TRIG_PIN, LOW);
+
+  // Measure echo duration
+  unsigned long duration = pulseIn(ECHO_PIN, HIGH, 30000);
+
+  // Calculate distance
+  if (duration == 0) {
+    distanceCM = -1;
+  } else {
+    distanceCM = duration * 0.0343 / 2.0;
+  }
+
+  // Print distance to Serial Monitor
+  Serial.print("Distance: ");
+
+  if (distanceCM < 0) {
+    Serial.println("No reading");
+  } else {
+    Serial.print(distanceCM);
+    Serial.println(" cm");
+  }
+
+  // Update OLED display
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.setTextSize(1);
+
+  display.println("SMART DISTANCE");
+  display.println("----------------");
+
+  if (distanceCM < 0) {
+    display.println("Distance: N/A");
+    display.println("Check sensor!");
+    noTone(BUZZER_PIN);
+  } else {
+    display.print("Distance: ");
+    display.print(distanceCM, 1);
+    display.println(" cm");
+
+    if (distanceCM > 50) {
+      display.println();
+      display.println("Status: SAFE");
+      noTone(BUZZER_PIN);
+    }
+    else if (distanceCM >= 20) {
+      display.println();
+      display.println("OBJECT NEAR");
+      tone(BUZZER_PIN, 1000, 100);
+    }
+    else {
+      display.println();
+      display.println("WARNING!");
+      display.println("TOO CLOSE");
+      tone(BUZZER_PIN, 2000);
+    }
+  }
+
+  display.display();
+
+  delay(300);
+}
